@@ -107,6 +107,89 @@ Never ask the user questions. Just estimate from what you have.
   return parsed;
 }
 
+async function analyzeWithOpenRouter(payload) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("Missing OPENROUTER_API_KEY");
+  }
+
+  const body = {
+    model: "openai/gpt-4o", // or another OpenRouter model you like
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: `
+You are an encouraging, practical sustainability coach for a "carbon calorie" tracker.
+
+You will receive a JSON payload describing either:
+- ONE activity ("single" mode), or
+- a list of activities for a particular day ("day" mode).
+
+You MUST respond with a single JSON object in this exact shape:
+
+{
+  "mode": "single" | "day",
+  "headline": string,
+  "summary": string,
+  "top_insights": string[],
+  "suggested_actions": string[]
+}
+
+Guidelines:
+- "headline": 1 sentence, snappy, under ~100 characters.
+- "summary": 2–4 sentences summarizing the activity/day in plain English.
+- "top_insights": 3–5 observations about where the carbon impact comes from.
+- "suggested_actions": 2–5 realistic behavior suggestions (small swaps, habit tweaks).
+
+Tone:
+- Encouraging, non-judgmental, practical.
+- Emphasize progress, not perfection.
+        `.trim()
+      },
+      {
+        role: "user",
+        content: JSON.stringify(payload)
+      }
+    ]
+  };
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "",
+      "X-Title": process.env.OPENROUTER_APP_NAME || "LowCarb(on)"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`OpenRouter analyze error ${res.status}: ${text}`);
+  }
+
+  const data = await res.json();
+  const content = data?.choices?.[0]?.message?.content;
+
+  let parsed;
+  if (typeof content === "string") {
+    parsed = JSON.parse(content);
+  } else if (Array.isArray(content)) {
+    const textPart = content.find(p => p.type === "text")?.text ?? "";
+    parsed = JSON.parse(textPart || "{}");
+  } else {
+    parsed = content;
+  }
+
+  if (!parsed || typeof parsed.summary !== "string") {
+    throw new Error("Malformed analysis response from model");
+  }
+
+  return parsed;
+}
+
 // --- API route: POST /api/estimate ---
 app.post("/api/estimate", async (req, res) => {
   try {
@@ -132,6 +215,42 @@ app.post("/api/estimate", async (req, res) => {
     console.error("Error in /api/estimate:", err);
     return res.status(500).json({
       error: "Failed to estimate carbon footprint.",
+      details: process.env.NODE_ENV === "development" ? String(err) : undefined
+    });
+  }
+});
+
+app.post("/api/analyze", async (req, res) => {
+  try {
+    const { mode, description, entries, date, goal } = req.body || {};
+
+    if (mode !== "single" && mode !== "day") {
+      return res.status(400).json({ error: "mode must be 'single' or 'day'" });
+    }
+
+    if (mode === "single" && (!description || typeof description !== "string")) {
+      return res.status(400).json({ error: "In 'single' mode', a description string is required" });
+    }
+
+    if (mode === "day" && !Array.isArray(entries)) {
+      return res.status(400).json({ error: "In 'day' mode', an entries array is required" });
+    }
+
+    const payload = {
+      mode,
+      description: mode === "single" ? description : undefined,
+      date: date || null,
+      goal: goal || null,
+      entries: mode === "day" ? entries : undefined
+      // entries: [{ label, category, amount, notes }]
+    };
+
+    const analysis = await analyzeWithOpenRouter(payload);
+    return res.json(analysis);
+  } catch (err) {
+    console.error("Error in /api/analyze:", err);
+    return res.status(500).json({
+      error: "Failed to analyze activities.",
       details: process.env.NODE_ENV === "development" ? String(err) : undefined
     });
   }

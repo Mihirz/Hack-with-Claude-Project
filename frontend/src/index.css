@@ -852,3 +852,78 @@ body.light-theme .chart-axis {
 body.light-theme .chart-label {
   fill: #6b7280;
 }
+
+.mode-toggle-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.toggle-pill {
+  border-radius: 999px;
+  border: 1px solid rgba(55, 59, 94, 0.8);
+  background: rgba(7, 9, 24, 0.95);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.toggle-pill-active {
+  border-color: rgba(129, 140, 248, 0.9);
+  background: radial-gradient(circle at top, rgba(129, 140, 248, 0.3), rgba(15, 23, 42, 1));
+  color: #ede9fe;
+}
+
+.insights-result {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(31, 35, 70, 0.9);
+  font-size: 0.82rem;
+}
+
+.insights-headline {
+  font-weight: 500;
+  margin: 0 0 4px;
+}
+
+.insights-summary {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+}
+
+.insights-section h4 {
+  margin: 6px 0 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.insights-section ul {
+  margin: 0 0 4px 16px;
+  padding: 0;
+  list-style: disc;
+}
+
+/* Light theme toggle pills (softer analyze buttons) */
+body.light-theme .toggle-pill {
+  border-radius: 999px;
+  border: 1px solid #d1d5db;      /* light gray border */
+  background: #e5e7eb;            /* soft neutral background */
+  color: #4b5563;                 /* muted gray text */
+  box-shadow: none;
+}
+
+body.light-theme .toggle-pill:hover {
+  background: #e0e2e7;            /* slightly darker on hover, still soft */
+}
+
+body.light-theme .toggle-pill-active {
+  border-color: #c7d2fe;          /* gentle indigo border */
+  background: #e0e7ff;            /* pastel indigo fill */
+  color: #3730a3;                 /* deep indigo text */
+}
+
+body.light-theme .toggle-pill-active:hover {
+  background: #d8dfff;            /* tiny bit stronger on hover */
+}

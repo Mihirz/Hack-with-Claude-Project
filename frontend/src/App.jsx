@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 
-
 const CATEGORY_PRESETS = [
   { label: "Transport", value: "transport" },
   { label: "Food", value: "food" },
@@ -8,8 +7,6 @@ const CATEGORY_PRESETS = [
   { label: "Shopping", value: "shopping" },
   { label: "Other", value: "other" }
 ];
-
-
 
 const API_BASE_URL = "http://localhost:4000";
 const DEFAULT_GOAL = 5000; // carbon calories / day
@@ -136,7 +133,11 @@ function App() {
       ) : activeTab === "insights" ? (
         <InsightsView entriesByDate={entriesByDate} />
       ) : (
-        <ExploreView />
+        <ExploreView
+          currentDate={currentDate}
+          todaysEntries={todaysEntries}
+          dailyGoal={dailyGoal}
+        />
       )}
     </div>
   );
@@ -156,13 +157,13 @@ function Header({ activeTab, onTabChange }) {
   }
   return (
     <header className="app-header">
-      <div className="app-logo">CarbonCal</div>
+      <div className="app-logo">LowCarb(on)</div>
       <nav className="app-nav">
         <button
           className={`nav-button subtle ${activeTab === "overview" ? "active" : ""}`}
           onClick={() => onTabChange("overview")}
         >
-          Overview
+          Track
         </button>
         <button
           className={`nav-button subtle ${activeTab === "insights" ? "active" : ""}`}
@@ -174,7 +175,7 @@ function Header({ activeTab, onTabChange }) {
           className={`nav-button subtle ${activeTab === "explore" ? "active" : ""}`}
           onClick={() => onTabChange("explore")}
         >
-          Explore
+          Learn
         </button>
       </nav>
       <div className="header-actions">
@@ -704,23 +705,191 @@ function InsightsView({ entriesByDate }) {
   );
 }
 
-function ExploreView() {
+function ExploreView({ currentDate, todaysEntries, dailyGoal }) {
   return (
     <main className="app-main">
       <section className="left-column">
+        <AIInsightsCard
+          currentDate={currentDate}
+          todaysEntries={todaysEntries}
+          dailyGoal={dailyGoal}
+        />
+      </section>
+      <section className="right-column">
         <div className="card card-main">
           <div className="card-header">
             <h3>Explore</h3>
             <p className="card-subtitle">
-              A space for future experiments, tips, and comparisons.
+              A space for experiments, comparisons, and deeper dives into your footprint.
             </p>
           </div>
           <div className="empty-state">
-            <p>Explore mode is coming soon.</p>
+            <p>Try generating AI insights on the left.</p>
+            <p className="hint">
+              You can analyze either today&apos;s activities or a single custom activity.
+            </p>
           </div>
         </div>
       </section>
     </main>
+  );
+}
+
+
+function AIInsightsCard({ currentDate, todaysEntries, dailyGoal }) {
+  const [mode, setMode] = useState("day"); // "day" | "single"
+  const [singleDescription, setSingleDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+
+  const hasEntries = todaysEntries && todaysEntries.length > 0;
+
+  async function handleAnalyze(e) {
+    e.preventDefault();
+    setError("");
+    setResult(null);
+
+    if (mode === "single" && !singleDescription.trim()) {
+      setError("Describe an activity first.");
+      return;
+    }
+    if (mode === "day" && !hasEntries) {
+      setError("No activities logged for this day yet.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const body =
+        mode === "single"
+          ? {
+              mode: "single",
+              description: singleDescription.trim()
+            }
+          : {
+              mode: "day",
+              date: currentDate.toISOString().slice(0, 10),
+              goal: dailyGoal,
+              entries: todaysEntries.map(e => ({
+                label: e.label,
+                category: e.category,
+                amount: e.amount,
+                notes: e.notes
+              }))
+            };
+
+      const res = await fetch(`${API_BASE_URL}/api/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      setResult(data);
+    } catch (err) {
+      console.error("Analyze error:", err);
+      setError("Couldn’t analyze right now. Try again in a moment.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h3>AI Insights</h3>
+        <p className="card-subtitle">
+          Let CarbonCal&apos;s AI coach summarize your impact and suggest small, high-leverage changes.
+        </p>
+      </div>
+
+      <form className="form" onSubmit={handleAnalyze}>
+        <div className="mode-toggle-row">
+          <button
+            type="button"
+            className={`toggle-pill ${mode === "day" ? "toggle-pill-active" : ""}`}
+            onClick={() => setMode("day")}
+          >
+            Analyze today&apos;s activities
+          </button>
+          <button
+            type="button"
+            className={`toggle-pill ${mode === "single" ? "toggle-pill-active" : ""}`}
+            onClick={() => setMode("single")}
+          >
+            Analyze one activity
+          </button>
+        </div>
+
+        {mode === "single" && (
+          <div className="form-row">
+            <label htmlFor="single-description">Activity to analyze</label>
+            <textarea
+              id="single-description"
+              rows="2"
+              placeholder="e.g. Flew to a conference and stayed 3 nights at a hotel"
+              value={singleDescription}
+              onChange={e => setSingleDescription(e.target.value)}
+            />
+          </div>
+        )}
+
+        {mode === "day" && (
+          <div className="hint">
+            We&apos;ll use all activities logged for{" "}
+            <strong>{currentDate.toLocaleDateString(undefined, {
+              weekday: "short",
+              month: "short",
+              day: "numeric"
+            })}</strong>{" "}
+            plus your daily goal of <strong>{dailyGoal} cc</strong>.
+          </div>
+        )}
+
+        {error && <p className="estimation-error">{error}</p>}
+
+        <div className="form-actions">
+          <button type="submit" className="primary-button" disabled={loading}>
+            {loading ? "Analyzing..." : "Generate insights"}
+          </button>
+        </div>
+      </form>
+
+      {result && (
+        <div className="insights-result">
+          {result.headline && <p className="insights-headline">{result.headline}</p>}
+          {result.summary && <p className="insights-summary">{result.summary}</p>}
+
+          {Array.isArray(result.top_insights) && result.top_insights.length > 0 && (
+            <div className="insights-section">
+              <h4>Key insights</h4>
+              <ul>
+                {result.top_insights.map((ins, i) => (
+                  <li key={i}>{ins}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {Array.isArray(result.suggested_actions) && result.suggested_actions.length > 0 && (
+            <div className="insights-section">
+              <h4>Suggested actions</h4>
+              <ul>
+                {result.suggested_actions.map((act, i) => (
+                  <li key={i}>{act}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

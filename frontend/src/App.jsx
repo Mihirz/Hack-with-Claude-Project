@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 
+
 const CATEGORY_PRESETS = [
   { label: "Transport", value: "transport" },
   { label: "Food", value: "food" },
@@ -7,6 +8,8 @@ const CATEGORY_PRESETS = [
   { label: "Shopping", value: "shopping" },
   { label: "Other", value: "other" }
 ];
+
+
 
 const API_BASE_URL = "http://localhost:4000";
 const DEFAULT_GOAL = 5000; // carbon calories / day
@@ -33,6 +36,7 @@ function App() {
     const stored = localStorage.getItem("carbon-cal-goal");
     return stored ? Number(stored) : DEFAULT_GOAL;
   });
+  const [activeTab, setActiveTab] = useState("overview");
 
   const dateKey = formatDateKey(currentDate);
   const todaysEntries = entriesByDate[dateKey] || [];
@@ -97,53 +101,120 @@ function App() {
 
   return (
     <div className="app-root">
-      <Header />
-      <main className="app-main">
-        <section className="left-column">
-          <CurrentDayCard
-            date={currentDate}
-            total={totalToday}
-            goal={dailyGoal}
-            remaining={remaining}
-            progress={progress}
-            onGoalChange={setDailyGoal}
-            onShiftDay={shiftDay}
-          />
-          <NewEntryCard
-            onAddEntry={handleAddEntry}
-          />
-        </section>
-        <section className="right-column">
-          <SummaryCard
-            entries={todaysEntries}
-            total={totalToday}
-            remaining={remaining}
-            goal={dailyGoal}
-            breakdown={categoryBreakdown}
-            highestCategory={highestCategory}
-          />
-          <EntriesListCard
-            entries={todaysEntries}
-            onDelete={handleDeleteEntry}
-          />
-        </section>
-      </main>
+      <Header activeTab={activeTab} onTabChange={setActiveTab} />
+      {activeTab === "overview" ? (
+        <main className="app-main">
+          <section className="left-column">
+            <CurrentDayCard
+              date={currentDate}
+              total={totalToday}
+              goal={dailyGoal}
+              remaining={remaining}
+              progress={progress}
+              onGoalChange={setDailyGoal}
+              onShiftDay={shiftDay}
+            />
+            <NewEntryCard
+              onAddEntry={handleAddEntry}
+            />
+          </section>
+          <section className="right-column">
+            <SummaryCard
+              entries={todaysEntries}
+              total={totalToday}
+              remaining={remaining}
+              goal={dailyGoal}
+              breakdown={categoryBreakdown}
+              highestCategory={highestCategory}
+            />
+            <EntriesListCard
+              entries={todaysEntries}
+              onDelete={handleDeleteEntry}
+            />
+          </section>
+        </main>
+      ) : activeTab === "insights" ? (
+        <InsightsView entriesByDate={entriesByDate} />
+      ) : (
+        <ExploreView />
+      )}
     </div>
   );
 }
 
-function Header() {
+function Header({ activeTab, onTabChange }) {
+  // Theme toggle logic
+  const [isDark, setIsDark] = useState(() => {
+    return window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
+  useEffect(() => {
+    document.body.classList.toggle("light-theme", !isDark);
+  }, [isDark]);
+  function toggleTheme() {
+    setIsDark((d) => !d);
+  }
   return (
     <header className="app-header">
       <div className="app-logo">CarbonCal</div>
       <nav className="app-nav">
-        <button className="nav-button subtle">Overview</button>
-        <button className="nav-button subtle">History</button>
-        <button className="nav-button subtle">Insights</button>
+        <button
+          className={`nav-button subtle ${activeTab === "overview" ? "active" : ""}`}
+          onClick={() => onTabChange("overview")}
+        >
+          Overview
+        </button>
+        <button
+          className={`nav-button subtle ${activeTab === "insights" ? "active" : ""}`}
+          onClick={() => onTabChange("insights")}
+        >
+          Insights
+        </button>
+        <button
+          className={`nav-button subtle ${activeTab === "explore" ? "active" : ""}`}
+          onClick={() => onTabChange("explore")}
+        >
+          Explore
+        </button>
       </nav>
       <div className="header-actions">
-        <button className="nav-button ghost">Dark</button>
-        <button className="primary-pill">Today</button>
+        <button className="nav-button ghost icon-toggle" onClick={toggleTheme} aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}>
+          {isDark ? (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 6.5 6.5 0 0 0 21 12.79z" />
+            </svg>
+          ) : (
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="4" />
+              <line x1="12" y1="3" x2="12" y2="5" />
+              <line x1="12" y1="19" x2="12" y2="21" />
+              <line x1="5" y1="12" x2="7" y2="12" />
+              <line x1="17" y1="12" x2="19" y2="12" />
+              <line x1="7.76" y1="7.76" x2="9" y2="9" />
+              <line x1="15" y1="15" x2="16.24" y2="16.24" />
+              <line x1="7.76" y1="16.24" x2="9" y2="15" />
+              <line x1="15" y1="9" x2="16.24" y2="7.76" />
+            </svg>
+          )}
+        </button>
       </div>
     </header>
   );
@@ -490,6 +561,166 @@ function EntriesListCard({ entries, onDelete }) {
         </ul>
       )}
     </div>
+  );
+}
+
+function InsightsView({ entriesByDate }) {
+  const points = useMemo(() => {
+    const rows = Object.entries(entriesByDate).map(([key, entries]) => {
+      const total = entries.reduce((sum, e) => sum + e.amount, 0);
+      return {
+        key,
+        date: new Date(key),
+        total
+      };
+    });
+
+    rows.sort((a, b) => a.date - b.date);
+    return rows;
+  }, [entriesByDate]);
+
+  if (!points.length) {
+    return (
+      <main className="app-main">
+        <section className="left-column">
+          <div className="card card-main">
+            <div className="card-header">
+              <h3>Insights</h3>
+              <p className="card-subtitle">
+                Once you log a few days of activities, you&apos;ll see your carbon
+                footprint trend over time here.
+              </p>
+            </div>
+            <div className="empty-state">
+              <p>No data yet to plot.</p>
+              <p className="hint">
+                Add some activities on the Overview tab to build your history.
+              </p>
+            </div>
+          </div>
+        </section>
+      </main>
+    );
+  }
+
+  const maxTotal = Math.max(...points.map(p => p.total)) || 1;
+  const width = 800;
+  const height = 260;
+  const paddingX = 40;
+  const paddingY = 24;
+  const innerWidth = width - paddingX * 2;
+  const innerHeight = height - paddingY * 2;
+
+  const pathD = points
+    .map((p, index) => {
+      const x =
+        paddingX +
+        (points.length === 1
+          ? innerWidth / 2
+          : (innerWidth * index) / (points.length - 1));
+      const y =
+        paddingY +
+        (innerHeight - (p.total / maxTotal) * innerHeight);
+      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+    })
+    .join(" ");
+
+  const areaD =
+    pathD +
+    ` L ${paddingX + innerWidth} ${paddingY + innerHeight} L ${paddingX} ${
+      paddingY + innerHeight
+    } Z`;
+
+  return (
+    <main className="app-main">
+      <section className="left-column">
+        <div className="card card-main">
+          <div className="card-header">
+            <h3>Carbon trend</h3>
+            <p className="card-subtitle">
+              Your total carbon calories per day, over time.
+            </p>
+          </div>
+          <div className="insights-chart">
+            <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Carbon footprint over time">
+              {/* X axis baseline */}
+              <line
+                x1={paddingX}
+                y1={paddingY + innerHeight}
+                x2={paddingX + innerWidth}
+                y2={paddingY + innerHeight}
+                className="chart-axis"
+              />
+              {/* Area under line */}
+              <path d={areaD} className="chart-area" />
+              {/* Trend line */}
+              <path d={pathD} className="chart-line" />
+              {/* Points */}
+              {points.map((p, index) => {
+                const x =
+                  paddingX +
+                  (points.length === 1
+                    ? innerWidth / 2
+                    : (innerWidth * index) / (points.length - 1));
+                const y =
+                  paddingY +
+                  (innerHeight - (p.total / maxTotal) * innerHeight);
+                return (
+                  <g key={p.key}>
+                    <circle cx={x} cy={y} r={3} className="chart-point" />
+                  </g>
+                );
+              })}
+              {/* Date labels (sparse to avoid clutter) */}
+              {points.map((p, index) => {
+                const showLabel =
+                  points.length <= 7 || index % Math.ceil(points.length / 6) === 0;
+                if (!showLabel) return null;
+                const x =
+                  paddingX +
+                  (points.length === 1
+                    ? innerWidth / 2
+                    : (innerWidth * index) / (points.length - 1));
+                const label = p.date.toLocaleDateString(undefined, {
+                  month: "short",
+                  day: "numeric"
+                });
+                return (
+                  <text
+                    key={`label-${p.key}`}
+                    x={x}
+                    y={paddingY + innerHeight + 18}
+                    className="chart-label"
+                  >
+                    {label}
+                  </text>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function ExploreView() {
+  return (
+    <main className="app-main">
+      <section className="left-column">
+        <div className="card card-main">
+          <div className="card-header">
+            <h3>Explore</h3>
+            <p className="card-subtitle">
+              A space for future experiments, tips, and comparisons.
+            </p>
+          </div>
+          <div className="empty-state">
+            <p>Explore mode is coming soon.</p>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
 

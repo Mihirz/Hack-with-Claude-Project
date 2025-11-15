@@ -654,6 +654,42 @@ function InsightsView({ entriesByDate }) {
           </div>
           <div className="insights-chart">
             <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Carbon footprint over time">
+              {/* Y axis line */}
+              <line
+                x1={paddingX}
+                y1={paddingY}
+                x2={paddingX}
+                y2={paddingY + innerHeight}
+                className="chart-axis"
+              />
+
+              {/* Y-axis tick labels */}
+              {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+                const y = paddingY + innerHeight - t * innerHeight;
+                const value = Math.round(t * maxTotal);
+
+                return (
+                  <g key={`ytick-${i}`}>
+                    {/* tick line a bit left of axis */}
+                    <line
+                      x1={paddingX - 4}
+                      y1={y}
+                      x2={paddingX}
+                      y2={y}
+                      className="chart-axis"
+                    />
+                    {/* label further left so it doesn’t overlap visually */}
+                    <text
+                      x={paddingX - 18}
+                      y={y + 4}
+                      className="chart-label"
+                      textAnchor="end"
+                    >
+                      {value}
+                    </text>
+                  </g>
+                );
+              })}
               {/* X axis baseline */}
               <line
                 x1={paddingX}
